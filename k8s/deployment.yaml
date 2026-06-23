@@ -1,0 +1,271 @@
+# =============================================================================
+# KUBERNETES DEPLOYMENT
+# =============================================================================
+#
+# What is a Deployment?
+# ---------------------
+# A Deployment manages a set of identical pods (replicas).
+# It provides:
+# - Declarative updates (describe desired state, K8s handles the rest)
+# - Rolling updates (zero-downtime deployments)
+# - Rollback capability
+# - Scaling (manual and automatic via HPA)
+# - Self-healing (restarts failed pods)
+#
+# Kubernetes Object Hierarchy:
+#   Deployment → ReplicaSet → Pod → Container
+#
+# Rolling Update Strategy:
+# - maxSurge: How many extra pods can exist during update
+# - maxUnavailable: How many pods can be unavailable during update
+#
+# Example: 3 replicas, maxSurge=1, maxUnavailable=0
+#   Step 1: Create 1 new pod (total: 4 pods, 3 old + 1 new)
+#   Step 2: New pod ready → terminate 1 old pod (total: 3 pods, 2 old + 1 new)
+#   Step 3: Create 1 new pod (total: 4 pods, 2 old + 2 new)
+#   Step 4: New pod ready → terminate 1 old pod (total: 3 pods, 1 old + 2 new)
+#   Step 5: Create 1 new pod (total: 4 pods, 1 old + 3 new)
+#   Step 6: New pod ready → terminate 1 old pod (total: 3 pods, 0 old + 3 new)
+#   ✅ Done! Zero downtime!
+#
+# Commands:
+#   kubectl apply -f deployment.yaml
+#   kubectl get deployments -n python-cicd-demo
+#   kubectl describe deployment python-cicd-demo -n python-cicd-demo
+#   kubectl rollout status deployment/python-cicd-demo -n python-cicd-demo
+#   kubectl rollout history deployment/python-cicd-demo -n python-cicd-demo
+#   kubectl rollout undo deployment/python-cicd-demo -n python-cicd-demo
+#   kubectl scale deployment python-cicd-demo --replicas=5 -n python-cicd-demo
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-cicd-demo
+  namespace: python-cicd-demo
+  labels:
+    app: python-cicd-demo
+    version: "1.0.0"
+    managed-by: jenkins
+spec:
+  # ---------------------------------------------------------------------------
+  # REPLICAS
+  # ---------------------------------------------------------------------------
+  # Number of identical pods to run
+  # Production typically: 3-5 (minimum 2 for high availability)
+  replicas: 3
+
+  # ---------------------------------------------------------------------------
+  # SELECTOR
+  # ---------------------------------------------------------------------------
+  # How the Deployment finds which pods to manage
+  selector:
+    matchLabels:
+      app: python-cicd-demo
+
+  # ---------------------------------------------------------------------------
+  # UPDATE STRATEGY
+  # ---------------------------------------------------------------------------
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # Max 1 extra pod during update
+      maxUnavailable: 0    # Zero downtime - never have fewer than desired
+
+  # ---------------------------------------------------------------------------
+  # POD TEMPLATE
+  # ---------------------------------------------------------------------------
+  template:
+    metadata:
+      labels:
+        app: python-cicd-demo
+        version: "1.0.0"
+      annotations:
+        # Force redeployment when configmap changes
+        checksum/config: "change-this-on-configmap-update"
+    spec:
+      # -----------------------------------------------------------------------
+      # SERVICE ACCOUNT
+      # -----------------------------------------------------------------------
+      serviceAccountName: default
+
+      # -----------------------------------------------------------------------
+      # CONTAINERS
+      # -----------------------------------------------------------------------
+      containers:
+        - name: python-cicd-demo
+          # Image tag is replaced by CI/CD pipeline
+          image: IMAGE_TAG
+          imagePullPolicy: Always
+
+          # Port configuration
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+              name: http
+
+          # -------------------------------------------------------------------
+          # ENVIRONMENT VARIABLES
+          # -------------------------------------------------------------------
+          env:
+            # From ConfigMap
+            - name: APP_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_NAME
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_ENV
+            - name: APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_VERSION
+            - name: APP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_PORT
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: LOG_LEVEL
+            # From Secret
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: SECRET_KEY
+
+          # -------------------------------------------------------------------
+          # RESOURCE MANAGEMENT
+          # -------------------------------------------------------------------
+          # requests: Minimum guaranteed resources (used for scheduling)
+          # limits: Maximum resources allowed (pod killed if exceeded)
+          resources:
+            requests:
+              cpu: "100m"       # 0.1 CPU cores
+              memory: "128Mi"   # 128 MB RAM
+            limits:
+              cpu: "500m"       # 0.5 CPU cores
+              memory: "256Mi"   # 256 MB RAM
+
+          # -------------------------------------------------------------------
+          # LIVENESS PROBE
+          # -------------------------------------------------------------------
+          # "Is the container alive?"
+          # If fails → Kubernetes RESTARTS the container
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10  # Wait before first check
+            periodSeconds: 10        # Check every 10 seconds
+            timeoutSeconds: 5        # Timeout per check
+            failureThreshold: 3      # Restart after 3 failures
+            successThreshold: 1      # 1 success = healthy
+
+          # -------------------------------------------------------------------
+          # READINESS PROBE
+          # -------------------------------------------------------------------
+          # "Is the container ready to receive traffic?"
+          # If fails → Kubernetes removes pod from Service endpoints
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5000
+            initialDelaySeconds: 5   # Wait before first check
+            periodSeconds: 5         # Check every 5 seconds
+            timeoutSeconds: 3        # Timeout per check
+            failureThreshold: 3      # Remove from service after 3 failures
+            successThreshold: 1      # 1 success = ready
+
+          # -------------------------------------------------------------------
+          # STARTUP PROBE (for slow-starting containers)
+          # -------------------------------------------------------------------
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            failureThreshold: 12     # 12 * 5s = 60s max startup time
+
+      # -----------------------------------------------------------------------
+      # RESTART POLICY
+      # -----------------------------------------------------------------------
+      restartPolicy: Always
+
+      # -----------------------------------------------------------------------
+      # TERMINATION GRACE PERIOD
+      # -----------------------------------------------------------------------
+      # Time given to pod to gracefully shut down before SIGKILL
+      terminationGracePeriodSeconds: 30
+
+---
+# =============================================================================
+# HORIZONTAL POD AUTOSCALER (HPA)
+# =============================================================================
+#
+# What is HPA?
+# ------------
+# HPA automatically scales the number of pods based on metrics:
+# - CPU utilization
+# - Memory utilization
+# - Custom metrics (requests per second, queue depth, etc.)
+#
+# Prerequisites:
+# - Metrics Server must be installed (minikube addons enable metrics-server)
+# - Resource requests must be defined in the deployment
+#
+# Commands:
+#   kubectl get hpa -n python-cicd-demo
+#   kubectl describe hpa python-cicd-demo-hpa -n python-cicd-demo
+#   kubectl top pods -n python-cicd-demo
+#
+# =============================================================================
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: python-cicd-demo-hpa
+  namespace: python-cicd-demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: python-cicd-demo
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70    # Scale up when CPU > 70%
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80    # Scale up when Memory > 80%
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60   # Wait 60s before scaling up again
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60            # Add max 2 pods per minute
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 min before scaling down
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60            # Remove max 1 pod per minute
+

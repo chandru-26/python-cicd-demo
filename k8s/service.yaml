@@ -1,0 +1,93 @@
+# =============================================================================
+# KUBERNETES SERVICE
+# =============================================================================
+#
+# What is a Service?
+# ------------------
+# A Service provides a stable network endpoint to access a set of pods.
+# Pods are ephemeral (they come and go), but Services provide a fixed IP/DNS.
+#
+# Service Types:
+# 1. ClusterIP (default): Internal access only within the cluster
+# 2. NodePort: Exposes service on each node's IP at a static port
+# 3. LoadBalancer: Creates external load balancer (cloud providers)
+# 4. ExternalName: Maps to external DNS name
+#
+# How Services Find Pods:
+# - Services use label selectors to find matching pods
+# - kube-proxy manages the routing rules
+# - DNS: service-name.namespace.svc.cluster.local
+#
+# Service Discovery:
+# - Within same namespace: http://service-name:port
+# - Cross namespace: http://service-name.namespace.svc.cluster.local:port
+#
+# Commands:
+#   kubectl get services -n python-cicd-demo
+#   kubectl describe service python-cicd-demo-service -n python-cicd-demo
+#   kubectl get endpoints python-cicd-demo-service -n python-cicd-demo
+#   minikube service python-cicd-demo-service -n python-cicd-demo --url
+#
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-cicd-demo-service
+  namespace: python-cicd-demo
+  labels:
+    app: python-cicd-demo
+    component: networking
+spec:
+  # ---------------------------------------------------------------------------
+  # SERVICE TYPE
+  # ---------------------------------------------------------------------------
+  # ClusterIP: Internal only (use with Ingress for external access)
+  # NodePort: Direct external access on node port (30000-32767)
+  # LoadBalancer: Cloud load balancer (AWS ELB, GCP LB, Azure LB)
+  type: NodePort
+
+  # ---------------------------------------------------------------------------
+  # SELECTOR
+  # ---------------------------------------------------------------------------
+  # Routes traffic to pods matching these labels
+  selector:
+    app: python-cicd-demo
+
+  # ---------------------------------------------------------------------------
+  # PORTS
+  # ---------------------------------------------------------------------------
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80            # Service port (what other services use)
+      targetPort: 5000    # Pod port (where the app listens)
+      nodePort: 30080     # External port on node (NodePort only)
+
+# =============================================================================
+# ASCII DIAGRAM - Service Routing:
+# =============================================================================
+#
+#   External Traffic
+#        │
+#        ▼ (NodePort: 30080)
+#   ┌─────────────────────────────────────────────┐
+#   │           Kubernetes Node                    │
+#   │                                             │
+#   │   ┌─────────────────────────────────────┐   │
+#   │   │     Service (ClusterIP/NodePort)     │   │
+#   │   │     python-cicd-demo-service         │   │
+#   │   │     Port: 80 → TargetPort: 5000     │   │
+#   │   └────────────────┬────────────────────┘   │
+#   │                    │                         │
+#   │         ┌──────────┼──────────┐             │
+#   │         ▼          ▼          ▼             │
+#   │   ┌─────────┐ ┌─────────┐ ┌─────────┐     │
+#   │   │  Pod 1  │ │  Pod 2  │ │  Pod 3  │     │
+#   │   │ :5000   │ │ :5000   │ │ :5000   │     │
+#   │   └─────────┘ └─────────┘ └─────────┘     │
+#   │                                             │
+#   └─────────────────────────────────────────────┘
+#
+# =============================================================================
+

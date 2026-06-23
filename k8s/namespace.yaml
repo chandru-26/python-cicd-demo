@@ -1,0 +1,41 @@
+# =============================================================================
+# KUBERNETES NAMESPACE
+# =============================================================================
+#
+# What is a Namespace?
+# --------------------
+# A namespace is a virtual cluster within a Kubernetes cluster.
+# It provides isolation and resource organization.
+#
+# Why use Namespaces?
+# - Separate environments (dev, staging, prod) in same cluster
+# - Resource quotas per team/project
+# - RBAC (Role-Based Access Control) boundaries
+# - Network policies per namespace
+#
+# Common Namespaces in Production:
+# - default       → Don't use for real workloads
+# - kube-system   → Kubernetes system components
+# - monitoring    → Prometheus, Grafana
+# - ingress       → Ingress controllers
+# - app-dev       → Development environment
+# - app-staging   → Staging environment
+# - app-prod      → Production environment
+#
+# Commands:
+#   kubectl create namespace python-cicd-demo
+#   kubectl get namespaces
+#   kubectl describe namespace python-cicd-demo
+#   kubectl delete namespace python-cicd-demo  # ⚠️ Deletes ALL resources in it!
+#
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: python-cicd-demo
+  labels:
+    app: python-cicd-demo
+    environment: development
+    managed-by: kubectl
+

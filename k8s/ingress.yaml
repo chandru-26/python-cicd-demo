@@ -1,0 +1,116 @@
+# =============================================================================
+# KUBERNETES INGRESS
+# =============================================================================
+#
+# What is an Ingress?
+# -------------------
+# An Ingress manages external HTTP/HTTPS access to services in the cluster.
+# It provides:
+# - URL-based routing (path-based routing)
+# - Host-based routing (virtual hosting)
+# - SSL/TLS termination
+# - Load balancing
+#
+# Ingress vs Service (NodePort/LoadBalancer):
+# - NodePort: One port per service (limited ports: 30000-32767)
+# - LoadBalancer: One LB per service (expensive in cloud)
+# - Ingress: One entry point, routes to multiple services (cost-effective)
+#
+# Ingress Controller:
+# - Ingress resources need a controller to work
+# - Popular controllers: NGINX, Traefik, HAProxy, AWS ALB
+# - Minikube: `minikube addons enable ingress`
+#
+# Commands:
+#   minikube addons enable ingress          # Enable NGINX ingress in Minikube
+#   kubectl get ingress -n python-cicd-demo
+#   kubectl describe ingress python-cicd-demo-ingress -n python-cicd-demo
+#
+# For local testing with Minikube:
+#   # Get Minikube IP
+#   minikube ip
+#   # Add to /etc/hosts (Linux/Mac) or C:\Windows\System32\drivers\etc\hosts
+#   <minikube-ip> python-cicd-demo.local
+#
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: python-cicd-demo-ingress
+  namespace: python-cicd-demo
+  labels:
+    app: python-cicd-demo
+  annotations:
+    # NGINX Ingress Controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+    # Rate limiting (production security)
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+
+    # Proxy settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+spec:
+  ingressClassName: nginx
+
+  # ---------------------------------------------------------------------------
+  # TLS CONFIGURATION (HTTPS)
+  # ---------------------------------------------------------------------------
+  # Uncomment for HTTPS (requires TLS secret)
+  # tls:
+  #   - hosts:
+  #       - python-cicd-demo.local
+  #     secretName: python-cicd-demo-tls
+
+  # ---------------------------------------------------------------------------
+  # ROUTING RULES
+  # ---------------------------------------------------------------------------
+  rules:
+    - host: python-cicd-demo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: python-cicd-demo-service
+                port:
+                  number: 80
+
+# =============================================================================
+# ASCII DIAGRAM - Ingress Routing:
+# =============================================================================
+#
+#   Internet / Browser
+#        │
+#        ▼
+#   ┌─────────────────────────────────────────────────────────────┐
+#   │              INGRESS CONTROLLER (NGINX)                      │
+#   │                                                             │
+#   │  Rules:                                                     │
+#   │  ┌───────────────────────────────────────────────────────┐  │
+#   │  │ Host: python-cicd-demo.local                          │  │
+#   │  │   /        → python-cicd-demo-service:80              │  │
+#   │  │   /api     → api-service:80                           │  │
+#   │  │   /admin   → admin-service:80                         │  │
+#   │  └───────────────────────────────────────────────────────┘  │
+#   │                                                             │
+#   │  ┌───────────────────────────────────────────────────────┐  │
+#   │  │ Host: api.company.com                                 │  │
+#   │  │   /v1      → api-v1-service:80                        │  │
+#   │  │   /v2      → api-v2-service:80                        │  │
+#   │  └───────────────────────────────────────────────────────┘  │
+#   └─────────────────────┬───────────────────────────────────────┘
+#                         │
+#              ┌──────────┼──────────┐
+#              ▼          ▼          ▼
+#        ┌──────────┐ ┌──────────┐ ┌──────────┐
+#        │ Service1 │ │ Service2 │ │ Service3 │
+#        └──────────┘ └──────────┘ └──────────┘
+#
+# =============================================================================
+
