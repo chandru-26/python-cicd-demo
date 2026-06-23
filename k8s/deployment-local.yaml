@@ -1,0 +1,96 @@
+# =============================================================================
+# LOCAL TESTING DEPLOYMENT (for Minikube without Docker Hub)
+# =============================================================================
+# Use this file for local Minikube testing.
+# The regular deployment.yaml uses IMAGE_TAG which is replaced by CI/CD.
+#
+# Usage:
+#   minikube image load python-cicd-demo:1.0.0
+#   kubectl apply -f k8s/namespace.yaml
+#   kubectl apply -f k8s/configmap.yaml
+#   kubectl apply -f k8s/secret.yaml
+#   kubectl apply -f k8s/deployment-local.yaml
+#   kubectl apply -f k8s/service.yaml
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-cicd-demo
+  namespace: python-cicd-demo
+  labels:
+    app: python-cicd-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: python-cicd-demo
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: python-cicd-demo
+    spec:
+      containers:
+        - name: python-cicd-demo
+          image: python-cicd-demo:1.0.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+          env:
+            - name: APP_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_NAME
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_ENV
+            - name: APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_VERSION
+            - name: APP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_PORT
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: LOG_LEVEL
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: SECRET_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      restartPolicy: Always
+
