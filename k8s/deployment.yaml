@@ -96,8 +96,8 @@ spec:
       containers:
         - name: python-cicd-demo
           # Image tag is replaced by CI/CD pipeline
-          image: IMAGE_TAG
-          imagePullPolicy: Always
+          image: chandruv12/python-cicd-demo:latest
+          imagePullPolicy: IfNotPresent
 
           # Port configuration
           ports:

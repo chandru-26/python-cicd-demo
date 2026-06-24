@@ -1,0 +1,16 @@
+workflow-aggregator
+git
+github
+github-branch-source
+docker-workflow
+docker-plugin
+credentials-binding
+pipeline-stage-view
+blueocean
+junit
+htmlpublisher
+timestamper
+ws-cleanup
+kubernetes-cli
+configuration-as-code
+

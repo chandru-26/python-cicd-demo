@@ -1,0 +1,32 @@
+# =============================================================================
+# Run Jenkins locally on Windows with full DevOps capabilities
+# =============================================================================
+# Usage:
+#   cd C:\devops\python-cicd-demo\jenkins
+#   docker compose up -d --build
+#
+# Then open: http://localhost:8090
+# =============================================================================
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jenkins
+    restart: unless-stopped
+    user: root          # Needed to access mounted Docker socket on Windows
+    ports:
+      - "8090:8080"     # Jenkins UI
+      - "50000:50000"   # Agent connections
+    volumes:
+      # Persist Jenkins data across restarts
+      - jenkins_home:/var/jenkins_home
+      # Allow Jenkins to control host Docker (for build/push/run)
+      - //var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+
+volumes:
+  jenkins_home:
+
