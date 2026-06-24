@@ -52,7 +52,7 @@ def register_routes(app):
             'application': current_app.config['APP_NAME'],
             'environment': current_app.config['APP_ENV'],
             'version': current_app.config['APP_VERSION'],
-            'message': 'Welcome to the Python CI/CD Demo Application!',
+            'message': '🚀 DEPLOYED VIA FULL JENKINS CI/CD - V6!',
             'documentation': '/docs',
             'health_check': '/health',
             'endpoints': {
