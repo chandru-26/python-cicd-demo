@@ -47,28 +47,9 @@ pipeline {
             }
         }
 
-        stage('2. Test & Quality') {
-            steps {
-                echo '🧪 Running tests in Python container...'
-                sh '''
-                    docker run --rm -v "$PWD":/app -w /app python:3.11-slim sh -c "
-                        pip install --no-cache-dir -r requirements.txt &&
-                        pip install --no-cache-dir flake8 bandit &&
-                        mkdir -p reports &&
-                        python -m pytest tests/ -v --junitxml=reports/test-results.xml &&
-                        flake8 app/ --max-line-length=120 || true &&
-                        bandit -r app/ -ll || true
-                    "
-                '''
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: 'reports/test-results.xml'
-                }
-            }
-        }
-
-        stage('3. Build Docker Image') {
+        stage('2. Build Docker Image (tests run inside)') {
+            // Note: Our multi-stage Dockerfile runs pytest during the builder stage.
+            // If tests fail, the docker build fails. This is "shift-left testing".
             steps {
                 echo "🐳 Building ${DOCKER_IMAGE}:${DOCKER_TAG}"
                 sh '''
@@ -80,7 +61,7 @@ pipeline {
             }
         }
 
-        stage('4. Push to Docker Hub') {
+        stage('3. Push to Docker Hub') {
             steps {
                 echo "📤 Pushing image to Docker Hub..."
                 withCredentials([usernamePassword(
@@ -98,7 +79,7 @@ pipeline {
             }
         }
 
-        stage('5. Deploy to Minikube') {
+        stage('4. Deploy to Minikube') {
             steps {
                 echo "☸️  Deploying to Kubernetes..."
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KCFG')]) {
@@ -119,7 +100,7 @@ pipeline {
             }
         }
 
-        stage('6. Verify') {
+        stage('5. Verify') {
             steps {
                 echo "✅ Verifying deployment..."
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KCFG')]) {
@@ -140,3 +121,4 @@ pipeline {
         always  { sh 'docker image prune -f || true' }
     }
 }
+
